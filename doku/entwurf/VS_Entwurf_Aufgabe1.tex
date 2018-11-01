@@ -1,0 +1,193 @@
+\documentclass[a4paper, 12pt]{scrartcl}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[ngerman]{babel}
+
+\usepackage{paralist}
+\usepackage{multicol}
+
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{pifont}
+
+\usepackage{listings}
+\usepackage{color}
+
+\usepackage{enumitem} % used for letters i, ii, iii... in enumerate
+
+\usepackage{graphicx}
+
+%setup
+\author{Jakob Otto\\
+	\texttt{2266015} \and Martin Beckmann\\
+	\texttt{2324916}}
+
+\title{VS-Aufgabe 1\\
+       Entwurf}
+
+% setting locales
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[ngerman]{babel}
+\usepackage{lmodern}
+\usepackage[locale=DE,list-final-separator={ oder },range-phrase={ bis },scientific-notation=false,group-digits=integer]{siunitx}
+
+% package includes
+\usepackage{xcolor}
+\usepackage{listings}
+
+%listing setup
+\definecolor{pblue}{rgb}{0.13,0.13,1}
+\definecolor{pgreen}{rgb}{0,0.5,0}
+\definecolor{pred}{rgb}{0.9,0,0}
+\definecolor{pgrey}{rgb}{0.46,0.45,0.48}
+\definecolor{javared}{rgb}{0.6,0,0} % for strings
+\definecolor{javagreen}{rgb}{0.25,0.5,0.35} % comments
+\definecolor{javapurple}{rgb}{0.5,0,0.35} % keywords
+\definecolor{javadocblue}{rgb}{0.25,0.35,0.75} % javadoc
+
+\lstset{language=java,
+	basicstyle=\ttfamily,
+	keywordstyle=\color{javapurple}\bfseries,
+	stringstyle=\color{javared},
+	commentstyle=\color{javagreen},
+	morecomment=[s][\color{javadocblue}]{/**}{*/},
+	numbers=left,
+	numberstyle=\tiny\color{black},
+	stepnumber=2,
+	numbersep=10pt,
+	tabsize=2,
+	showspaces=false,
+	showstringspaces=false
+}
+
+
+\begin{document}
+\maketitle
+\newpage
+	
+\section{Aufgabe}
+In diesem Praktikumstermin soll eine verteile Server-Client-Anwendung programmiert werden. Dabei werden auf Verteilungstranzparenz, Interoperabilität und eine definierte Fehlertoleranz geachtet.
+
+\subsection{Verteilungstransparenz/Interoperabilität}
+Die Verteilungstranzparenz wird gewährleistet, indem der Server von der Klasse Remote erbt. Somit ist seine Nutzung in einem verteilten System fast identisch mit seiner Nutzung in einem lokalen System. Der einzige Unterschied liegt in der Beschaffung einer Referenz auf den Server im Client. Dieser würde über einen Aufruf Naming.lookup("MessageService") erfolgen. Dieser Aufruf liefert eine Remote-Referenz mit der anschließend gearbeitet werden kann.
+Die Interoperabilität wird durch ein einheitliches Interface sichergestellt. Wenn sich jede Implementation des Servers an das Interface aus der Aufgabenstellung hält, können alle Clients mit diesen Servern kommunizieren.
+
+\subsection{Fehlertoleranz/Semantiken}
+Die definierte Fehlertoleranz wird erreicht, indem die korrekte Fehlersemantik aus der Aufgabenspezifikation implementiert wird.
+
+Die Methode \lstinline|nextMessage(String clientId)| vom Server soll eine \glqq{}at-most-once\grqq{} Fehlersemantik implementieren. Das heißt, dass der Client mehrere Anfragen stellen kann und der Server Duplikate dieser Anfragen filtert. Die angefragte Nachricht wird dann maximal \textbf{ein mal} ausgeliefert.
+
+Das Senden einer Nachricht eines Clients soll die \glqq{}at-least-once\grqq{} Fehlersemantik implementieren. Dabei stellt der Client so lange Anfragen, bis der Server den Erhalt der Nachricht mit einem Acknowledgement bestätigt. Es ist also sichergestellt, dass der Server die Nachricht \textbf{mindestens} ein mal erhält -- es ist aber nicht ausgeschlossen, dass die Nachricht öfter dort eintrifft. Der Server sollte dies erkennen und die eintreffenden Nachrichten entsprechend filtern.
+
+Das Abholen aller verfügbaren Nachrichten soll mit der Fehlersemantik \glqq{}maybe\grqq{} implementiert werden. Diese Fehlersemantik kommt der lokalen Programmierung am nächsten. Anfragen werden genau einmal gesendet und Verlust von Nachrichten wird in kauf genommen. Beim Verlust von Daten wird die Anfrage nicht noch ein mal gesendet.
+
+Zusätzlich sollen Clients für ein konfigurierbares Zeitintervall $s$ robust gegen Serverausfälle sein. Das wird erreicht indem konstant wieder auftretende Fehler vom Server erst nach s Sekunden als Serverausfall interpretiert werden. Beim Ausfall des Servers wird eine Fehlermeldung auf der GUI ausgegeben und -- wenn möglich -- ein reconnect durchgeführt.
+
+
+\newpage
+\section{Tests}
+Die hier nachfolgend erläuterten Tests sollen vorrangig testen, ob die Fehlersemantiken für die Anwendung korrekt implementiert wurden.
+Da die richtige Implementation der Fehlersemantiken vom Client implementiert werden müssen, wurde eine weitere Serverklasse geschrieben, welche das vorgegebene Interface implementiert. Somit kann der Client normal mit dem Server sprechen, und zeitgleich können wir sicherstellen, dass gewisse problematische Situationen auftreten um das Verhalten des Clients zu prüfen.
+Da Fehlersemantiken erst eine Rolle spielen, wenn Anfragen zum Server verloren werden können, müssen wir dies also simulieren. Das wurde erreicht, indem der Server jeweils zählt wie viele \glqq{}nextMessage\grqq{}}- und \glqq{}newMessage\grqq{}-Anfragen er bereits bekommen hat, und alle n Anfragen mit einer RemoteException direkt quittiert. Da der Client nicht unterscheiden kann warum die Exception geworfen wurde, muss die Fehlerbehandlung die gleiche sein, als wäre die Anfrage durch eine schlechte Verbindung verloren worden.
+Wenn die Fehlersemantiken korrekt implementiert wurden, erwarten wir, dass trotz schlechter Verbindung alle Nachrichten erfolgreich an den Server gesendet werden (\glqq{}at-least-once\grqq{}), jedoch nicht immer alle Nachrichten erfolgreich vom Server an die Clients gesendet werden kann (\glqq{}maybe\grqq{}).
+Der genaue Testablauf besteht daraus, dass der Nutzer die Nachrichten \glqq{}1\grqq{}, \glqq{}2\grqq{}, \glqq{}3\grqq{}... sendet. Zu erwarten ist, dass die Nachrichten nicht unmittelbar, sondern erst nach kurzer Zeit aus dem Textfeld verschwinden. Das liegt daran, dass der Client eine gewisse Zeit wartet bevor eine fehlgeschlagene Anfrage erneut an den Server senden.
+Nachdem ein paar Nachrichten gesendet wurden, versucht man die Nachrichten vom Server ausliefern zu lassen. Aufgrund der simulierten schlechten Verbindung zum Server werden manche Anfragen nicht korrekt überliefert. Das führt dazu, dass der Nutzer manuell mehrere Male die nächste Nachricht anfragen muss bis diese auch in der GUI erscheint. Wenn man die Nachrichten häufig genug angefragt hat, stehen sie anschließend alle, vom Nutzer gesendeten, Texte in der oberen Textbox.
+Somit ist zu erkennen, dass tatsächlich alle Nachrichten erfolgreich an den Server ausgeliefert werden und Nachrichten \glqq{}maybe\grqq{} vom Server geholt werden.
+
+
+\newpage
+\section{Interfaces}
+\begin{lstlisting}
+public interface MessageService extends Remote {
+	public String nextMessage(String clientID) throws RemoteException;
+	public void newMessage(String clientID, String message) throws RemoteException;
+}
+\end{lstlisting}
+
+\begin{lstlisting}
+public class ClientConnection {
+	String message;
+	int timeStamp;
+}
+\end{lstlisting}
+
+\begin{lstlisting}
+public class MessageServer implements MessageService {
+	private int messageCounter;
+	private Queue<String> deliveryQueue;
+	private Map<String, ClientConnection> connections;
+	private int maxConnectionAgeSeconds;
+	
+	public MessageServer(){
+		messageCounter = 0;
+		deliveryQueue = new LinkedList<String>();
+		connections = new HashMap<String, ClientConnection>();
+		maxConnnectionAgeSeconds = 10
+		//holds most recent sent message of each client
+	}
+	
+	public static void main(String[] args) {
+		//setup remote reference
+		//keep alive and working with main loop
+		//remove old connections
+	}
+	
+	@Override
+	public String nextMessage(String clientID) throws RemoteException {
+		//send next message
+		//update connections data
+	}	
+	
+	@Override
+	public void newMessage(String clientID, String message) throws RemoteException {	
+		//filter multiple "identical" calls to implement "at-most-once"
+		//fetch messageId, clientIP, timeStamp
+		//store message in deliveryQueue<messageID>" "<clientID>":"<message>" "<timestamp>,
+	}
+}
+\end{lstlisting}
+
+\begin{lstlisting}
+public class MessageClient { //extends Remote?
+	private int serverTimeoutS;
+	
+	public MessageClient(){
+		serverTimeoutS = 2;
+	}
+	
+	public static void main(String[] args) {
+		//fetch remote reference of MessageServer
+		//keep alive and working with main loop
+	}
+	
+	public void sendMessage() {
+		//read userInput for message
+		//call MessageService.newMessage() multiple times (until ACK) ("at-least-once")
+		//loop over try-catch-block?
+	}
+	
+	public List<String> receiveAllMessages() {
+		//implement "maybe"
+		//call MessageService.nextMessage() until null returns
+		//loop over try-catch-block? (for s seconds)
+		//return list
+	}
+	
+	public String receiveMessage() {
+		//implement "maybe"
+		//try-catch-block?
+		//call MessageService.nextMessage()
+	}
+	
+	public void setServerTimeout(int newServerTimeoutS){
+		serverTimeoutS = newServerTimeoutS;
+	}
+}
+\end{lstlisting}
+
+\newpage	
+\section{Quellen}
+https://vsis-www.informatik.uni-hamburg.de/oldServer/teaching/ws-11.12/vis/folien/06a-RPC.pdf Seite 45-Ende
+\end{document}
+

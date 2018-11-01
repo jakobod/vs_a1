@@ -1,0 +1,148 @@
+Stichpunkte
+
+Quellen:
+	https://vsis-www.informatik.uni-hamburg.de/oldServer/teaching/ws-11.12/vis/folien/06a-RPC.pdf Seite 45-Ende
+
+Verteilungstranzparenz:
+	Alle Komponenten erben von Remote und sind daher in lokalen Systemen wie in verteilten Systemen identisch zu verwenden
+
+Interoperabilität:
+	Gegeben durch das vorgeschriebene Interface
+
+Fehlertoleranz:
+	Nachrichtenauslieferung des Servers: At-most-once
+	Nachrichten senden von Redakteurclients: At-least-once
+	Nachrichtenabruf lesender clients: maybe
+
+Struktur:
+
+	Server:
+		implementiert MessageService Interface
+			MessageServer implements MessageService
+
+
+		main initialisiert Server und meldet den Namensdienst an:
+			MessageServer ms = new MessageServer()
+			Naming.rebind("MessageServer", ms)
+
+		nextMessage implementiert "At-most-once" Fehlersemantik
+			sendet Nachricht und ignoriert ob eine Antwort gekommen ist (Nachricht kann verloren werden)
+
+		messageIdCounter
+		DeliveryQueue (länge n, Verdrängung nach FIFO)
+		AuslieferungsGedächtnis Map<String, String> -> <clientID(IP), message>
+
+
+	Clients:
+		main initialisiert Client und verschafft sich Zugriff zum MessageService
+			MessageService ms = (MessageService)Naming.lookup("messageService")
+
+		robust gegen Serverausfälle eines konfigurierbaren Zeitintervals
+			wiederholende Fehler werden erst ab t Sekunden als Serverabbruch interpretiert
+
+		soll Server konfigurieren können
+
+
+	schreibender Client:
+		void send(String message) implementiert "At-least-once" Fehlersemantik
+			sendet GetRequests bis eine Antwort kommt
+
+
+	lesender Client:
+		List<String> receiveAll() implementiert "maybe" Fehlersemantik
+			holt solange Nachrichten bis das erste mal null kam
+
+
+
+
+Fließtext
+
+
+In diesem Praktikumstermin wird eine verteile Server-Client-Anwendung programmiert. Dabei werden auf Verteilungstranzparenz, Interoperabilität und eine definierte Fehlertoleranz geachtet.
+Die Verteilungstranzparenz wird gewährleistet, indem der Server von der Klasse Remote erbt. Somit ist seine Nutzung in einem verteilten System fast identisch mit seinter Nutzung in einem lokalen System. Der einzige Unterschied liegt in der Beschaffung einer Referenz auf den Server im Client. Dieser würde über einen Aufruf Naming.lookup("MessageService") erfolgen.
+Dieser liefert eine Remote-Referenz mit der anschließend gearbeitet werden kann.
+Die Interoperabilität wird durch ein einheitliches Interface sichergestellt. Wenn sich jede Implementation des Servers an das Interface aus der Aufgabenstellung hält, können alle Clients mit diesen Servern kommunizieren.
+Die definierte Fehlertoleranz wird erreicht, indem die korrekte Fehlersemantik aus der Aufgabenspezifikation implementiert wird.
+Somit muss nextMessage(String clientId) vom Server "at-most-once" implementieren. Das heißt, dass der Client mehrere Anfragen stellen kann und der Server Duplikate filtert und die Nachricht trotzdem nur einmal ausliefert.
+Das Senden einer Nachricht eines Clients soll "at-least-once" implementieren. Das wird erreicht wenn der Client solange sned-Anfragen stellt, bis er ein Acknowledgement vom Server erhält. Somit ist sichergestellt, dass keine Nachricht auf dem Weg zum Server verloren werden kann.
+Das Abholen aller verfügbaren Nachrichten soll mit der Fehlersemantik "maybe" implementiert werden. Das ist die simpelste aller Fehlersemantiken und kommt der lokalen Programmierung am nächsten. Dabei werden Anfragen genau einmal gesendet und Verlust von Nachrichten wird in kauf genommen.
+Zusätzlich sollen Clients für ein konfigurierbares Zeitinterval s robust gegen Serverausfälle sein. Das wird erreicht indem konstant wieder auftretende Fehler vom Server erst nach s Sekunden als Serverausfall interpretiert werden.
+
+
+public interface MessageService extends Remote {
+	public String nextMessage(String clientID) throws RemoteException;
+	public void newMessage(String clientID, String message) throws RemoteException;
+}
+
+public class ClientConnection {
+	String message;
+	int timeStamp;
+}
+
+public class MessageServer implements MessageService {
+	private int messageCounter;
+	private Queue<String> deliveryQueue;
+	private Map<String, ClientConnection> connections;
+	private int maxConnectionAgeSeconds;
+
+	public MessageServer(){
+		messageCounter = 0;
+		deliveryQueue = new LinkedList<String>();
+		connections = new HashMap<String, ClientConnection>();
+		maxConnnectionAgeSeconds = 10
+		//holds most recent sent message of each client
+	}
+
+	public static void main(String[] args) {
+		//setup remote reference
+		//keep alive and working with main loop
+		//remove old connections
+	}
+
+	public String nextMessage(String clientID) throws RemoteException {
+		//send next message
+		//update connections data
+	}	
+
+	public void newMessage(String clientID, String message) throws RemoteException {	
+		//filter multiple "identical" calls to implement "at-most-once"
+		//fetch messageId, clientIP, timeStamp
+		//store message in deliveryQueue<messageID>" "<clientID>":"<message>" "<timestamp>,
+	}
+}
+
+public class MessageClient { //extends Remote?
+	private int serverTimeoutS;
+
+	public MessageClient(){
+		serverTimeoutS = 2;
+	}
+
+	public static void main(String[] args) {
+		//fetch remote reference of MessageServer
+		//keep alive and working with main loop
+	}
+
+	public void sendMessage() {
+		//read userInput for message
+		//call MessageService.newMessage() multiple times (until ACK) ("at-least-once")
+		//loop over try-catch-block?
+	}
+
+	public List<String> receiveAllMessages() {
+		//implement "maybe"
+		//call MessageService.nextMessage() until null returns
+		//loop over try-catch-block? (for s seconds)
+		//return list
+	}
+
+	public String receiveMessage() {
+		//implement "maybe"
+		//try-catch-block?
+		//call MessageService.nextMessage()
+	}
+
+	public void setServerTimeout(int newServerTimeoutS){
+		serverTimeoutS = newServerTimeoutS;
+	}
+}
